@@ -42,7 +42,7 @@ def get_hashtag_file_id(hashtag):
 
     hashed_hashtag = hashlib.md5(hashtag.encode('ascii')).hexdigest()
     last_id_filename = "last_id_hashtag_%s" % hashed_hashtag
-    rt_bot_path = os.path.dirname(os.path.abspath(__file__))
+    rt_bot_path = os.path.join(os.path.abspath('.'), "hashes")
     last_id_file = os.path.join(rt_bot_path, last_id_filename)
 
     return last_id_file
@@ -177,9 +177,8 @@ class Config():
 
     def __init__(self):
         try:
-            path = os.path.dirname(os.path.abspath(
-                inspect.getfile(inspect.currentframe())))
-            with open(os.path.join(path, "config.json")) as json_data_file:
+            path = os.path.abspath('.')
+            with open(os.path.join(path, "config", "config.json")) as json_data_file:
                 config_data = json.load(json_data_file)
 
             self.twitter_keys = config_data['twitter_keys']
