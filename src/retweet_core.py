@@ -6,7 +6,6 @@ import common_methods
 import logging
 import tweepy
 import re
-import os
 
 
 def retweet(api, query_objects):
