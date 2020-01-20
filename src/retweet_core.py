@@ -7,6 +7,16 @@ import logging
 import tweepy
 import re
 
+        if filter_mentions and '@' in tweet.text:
+            return False
+            return False
+
+def create_hashes_folder():
+    """Checks if the hashes directory exists, if not create it"""
+
+    if not os.path.exists('hashes'):
+        os.makedirs('hashes')
+
 
 def retweet(api, query_objects):
     """Performs the logic surrounding retweeting the query objects defined in the config file"""
