@@ -1,23 +1,38 @@
 # Retweet Bot filtering module which handles filtering timeline and statuses based on query_objects
 
+import logging
+from better_profanity import profanity
 
-def filter_status(tweet, list_of_previous_tweet_ids, max_hashtags, max_urls, filter_mentions, filter_media):
+profanity.load_censor_words()
+
+def filter_status(tweet, list_of_previous_tweet_ids, max_hashtags, max_urls, filter_mentions, filter_media, filter_profanity, require_media):
     """Performs filtering logic on each tweet being processed"""
+    filtered_out = []
 
-    if not tweet.retweeted or tweet.id not in list_of_previous_tweet_ids:
+    if not tweet.retweeted and tweet.id not in list_of_previous_tweet_ids:
+
+        if filter_profanity and profanity.contains_profanity(tweet.text):
+            filtered_out.append('profanity')
 
         if filter_media and tweet.entities['media'] is not None:
-            return False
+            filtered_out.append('contains media')
+        
+        if require_media and 'media' in tweet.entities and tweet.entities['media'][0] is None:
+            filtered_out.append('no media')
 
         if filter_mentions and len(tweet.entities['user_mentions']) > 0:
-            return False
+            filtered_out.append('user mention')
             
         if max_hashtags < len(tweet.entities['hashtags']):
-            return False
+            filtered_out.append('too many hashtags')
 
         if max_urls < len(tweet.entities['urls']):
-            return False
+            filtered_out.append('too many URLs')
 
+    if filtered_out:
+        logging.info(f'Filtered tweet (ID {tweet.id}) due to: {", ".join(filtered_out)}')
+        return False
+    
     return True
     
 def filter_timeline(timeline, query_object):

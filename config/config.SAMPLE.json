@@ -1,4 +1,7 @@
 {
+    "general": {
+        "log_level": "DEBUG"
+    },
     "twitter_keys": {
         "screen_name": "DevMicrocosm",
         "consumer_key": "",

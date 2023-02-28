@@ -10,6 +10,7 @@ class Config():
     twitter_keys = {}
     follower_management = {}
     query_objects = {}
+    general = {}
 
     def __init__(self):
         try:
@@ -20,6 +21,7 @@ class Config():
             self.twitter_keys = config_data['twitter_keys']
             self.follower_management = config_data['follower_management']
             self.query_objects = config_data['query_objects']
+            self.general = config_data['general']
 
         except Exception as err:
             logging.error("Failed to load config. Error: %s", err)
