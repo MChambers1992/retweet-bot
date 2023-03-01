@@ -9,7 +9,7 @@ def filter_status(tweet, list_of_previous_tweet_ids, max_hashtags, max_urls, fil
     """Performs filtering logic on each tweet being processed"""
     filtered_out = []
 
-    if not tweet.retweeted and tweet.id not in list_of_previous_tweet_ids:
+    if not tweet.retweeted:
 
         if filter_profanity and profanity.contains_profanity(tweet.text):
             filtered_out.append('profanity')
@@ -30,7 +30,7 @@ def filter_status(tweet, list_of_previous_tweet_ids, max_hashtags, max_urls, fil
             filtered_out.append('too many URLs')
 
     if filtered_out:
-        logging.info(f'Filtered tweet (ID {tweet.id}) due to: {", ".join(filtered_out)}')
+        logging.info(f'Filtered tweet (ID {tweet.id}) due to: {", ".join(filtered_out)}\n')
         return False
     
     return True

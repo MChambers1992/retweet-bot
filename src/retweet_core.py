@@ -41,7 +41,10 @@ async def retweet(api, query_objects):
 
         for status in timeline:
             try:
-                list_of_previous_tweet_ids.append(status.id)
+                if status.id in list_of_previous_tweet_ids:
+                    continue
+                else:
+                    list_of_previous_tweet_ids.append(status.id)
 
                 if filtering_methods.filter_status(status, list_of_previous_tweet_ids, query_object['max_hashtags'],
                                                    query_object['max_urls'], query_object['filter_mentions'], query_object['filter_media'], query_object['filter_profanity'],
@@ -69,25 +72,12 @@ async def retweet(api, query_objects):
                 logging.error(err)
                 continue
 
-        logging.info("Finished. %d retweeted, %d followed, %d favourited, %d errors." %
+        logging.info("Finished. %d retweeted, %d followed, %d favourited, %d errors.\n" %
               (tweet_count, followed_count, favourite_count, err_count))
 
         with open(hash_management.get_hash_file_id(query_object['search_query']), "w") as file:
             file.write(str(last_tweet_id))
 
-
-def retweet_from_accounts(api, account_list):
-    """Retweets tweets from specific accounts"""
-
-    # Loop through the specified accounts and retweet their tweets
-    for account in account_list:
-        tweets = api.user_timeline(screen_name=account, count=10)
-        for tweet in tweets:
-            try:
-                api.retweet(tweet.id)
-                logging.info(f"Retweeted tweet from {account}")
-            except tweepy.TweepError as e:
-                logging.error(f"Error retweeting tweet from {account}: {e}")
 
 def api_login(twitter_keys):
     """Logins to the Twitter API using the consumer and access tokens provided in the config file"""

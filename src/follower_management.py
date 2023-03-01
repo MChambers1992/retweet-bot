@@ -1,10 +1,11 @@
 # Retweet Bot follower management module
 
+import concurrent.futures
 import common_methods
 import logging
 import datetime
-
 import tweepy
+from tweepy_logging import log_errors
 
 async def manage_followers(api, config):
     """Performs the logic surrounding maintaining active follower using the follower management settings defined in the config file"""
@@ -27,104 +28,77 @@ async def manage_followers(api, config):
             follow_back(api, config, not_following_back)
 
 
+@log_errors
 def follow_back(api, config, not_following_list):
     """Follows back any users who you have not have reciprocated a connection with"""
 
     followed_users = 0
-    err_count = 0
 
-    try:
-        for user in not_following_list:
-            if followed_users < config.follower_management['max_follows']:
-                api.create_friendship(user, True)
-                followed_users += 1
+    for user in not_following_list[:config.follower_management['max_follows']]:
+        api.create_friendship(user, True)
+        followed_users += 1
+        logging.info("Followed: %d" % user)
 
-        logging.info("Finished reciprocated follows. %d users followed." % followed_users)
-    except (tweepy.error.TweepError, IndexError) as err:
-        err_count += 1
-        logging.error(err)   
-
-        if (hasattr(err, 'reason')):
-            if err.reason == "[{'message': 'Rate limit exceeded', 'code': 88}]":
-                return
+    logging.info("Finished reciprocated follows. %d users followed." % followed_users)
 
 
+@log_errors
 def aggressive_management(api, config):
     """Aggressive management unfollows any followers until rate limit is hit that aren't following back"""
 
-    limit_hit = False
     unfollowed_count = 0
-    err_count = 0
 
-    try:
-        for page in tweepy.Cursor(api.friends, count = 100).pages():  
-            if limit_hit is False:      
-                user_ids = [user.id for user in page]
+    for page in tweepy.Cursor(api.friends, count=100).pages():
+        user_ids = [user.id for user in page]
+        friendships = api._lookup_friendships(user_ids)
+        for user, friendship in zip(page, friendships):
+                if unfollowed_count >= config.follower_management['max_unfollows']:
+                    return
 
-                for user in api._lookup_friendships(user_ids):
-                    try:
-                        if (unfollowed_count > config.follower_management['max_unfollows']):
-                            limit_hit = True
-                            break
+                if not friendship.is_followed_by:
+                    api.destroy_friendship(user.id)
+                    unfollowed_count += 1
+                    logging.info("Unfollowed: %d" % user.id)
 
-                        if not user.is_followed_by:
-                            api.destroy_friendship(user.id)
-                            unfollowed_count += 1
-
-                    except (tweepy.error.TweepError, IndexError) as err:
-                        err_count += 1
-                        logging.error(err)   
-
-                        if (hasattr(err, 'reason')):
-                            if err.reason == "[{'message': 'Rate limit exceeded', 'code': 88}]":
-                                limit_hit = True
-                                break 
-
-                        continue
-
-    except (tweepy.error.TweepError, IndexError) as err:
-        err_count += 1
-        logging.error(err)   
-
-        if (hasattr(err, 'reason')):
-            if err.reason == "[{'message': 'Rate limit exceeded', 'code': 88}]":
-                limit_hit = True
-
-    logging.info("Finished. %d unfollowed, %d errors." % (unfollowed_count, err_count))
+    logging.info("Finished. %d unfollowed." % unfollowed_count)
 
 
-def passive_management(api, config, following, following_back):
-    """Passive management unfollows any followers who haven't tweeted within the inactivity date set in config"""
-    """This method also allows prevention of followers being unfollowed via config"""
-
+def unfollow_inactive_followers(api, config, followers, inactivity_date, following_back):
     unfollowed_count = 0
-    err_count = 0
-
-    inactivityDate = datetime.date.today() - datetime.timedelta(days = config.follower_management['inactivity_period'])
-
-    for follower in following:
-        try:
-            if config.follower_management['remove_followers'] is False and follower in following_back:
-                continue
-
-            if (unfollowed_count < config.follower_management['max_unfollows']):
-                lastTweet = api.user_timeline(follower, count = 1)
-                lastTweetDate = lastTweet[0].created_at.date()
-
-                if lastTweetDate < inactivityDate:                
-                        api.destroy_friendship(follower)
-                        unfollowed_count += 1
-                        logging.info("Unfollowed: %d" % (follower))
-                        continue
-
-        except (tweepy.error.TweepError, IndexError) as err:
-            err_count += 1
-            logging.error(err)   
-
-            if (hasattr(err, 'reason')):
-                if err.reason == "[{'message': 'Rate limit exceeded', 'code': 88}]":
-                    break 
-
+    for follower in followers:
+        if not config.follower_management['remove_followers'] and follower in following_back:
             continue
 
-    logging.info("Finished. %d unfollowed, %d errors." % (unfollowed_count, err_count))
+        if unfollowed_count >= config.follower_management['max_unfollows']:
+            break
+
+        last_tweet_date = api.user_timeline(follower, count=1)[0].created_at.date()
+
+        if last_tweet_date >= inactivity_date:
+            continue
+
+        api.destroy_friendship(follower)
+        unfollowed_count += 1
+        logging.info("Unfollowed: %d" % follower)
+    return unfollowed_count
+
+@log_errors
+def passive_management(api, config, following, following_back):
+    """Passive management unfollows any followers after a configured inactivity period"""
+
+    inactivity_date = datetime.date.today() - datetime.timedelta(days=config.follower_management['inactivity_period'])
+    unfollowed_count = 0
+    chunk_size = 50
+
+    with concurrent.futures.ThreadPoolExecutor() as executor:
+        futures = []
+        following_list = list(following)
+        for i in range(0, len(following_list), chunk_size):
+            chunk = following_list[i:i+chunk_size]
+            future = executor.submit(unfollow_inactive_followers, api, config, chunk, inactivity_date, following_back)
+            futures.append(future)
+
+        for future in concurrent.futures.as_completed(futures):
+            unfollowed_count += future.result()
+
+    logging.info("Finished. %d unfollowed." % unfollowed_count)
