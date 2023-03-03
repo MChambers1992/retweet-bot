@@ -1,4 +1,4 @@
-# Retweet Bot configuration module
+"""Retweet Bot configuration module. Loads the JSON config file into memory.""" 
 
 import logging
 import json
@@ -14,7 +14,8 @@ class Config():
 
     def __init__(self):
         try:
-            path = os.path.abspath(os.path.join(os.path.dirname( __file__ ), '..', "config", "config.json"))
+            path = os.path.abspath(os.path.join(os.path.dirname( __file__ ),
+                                                '..', "config", "config.json"))
             with open(path) as json_data_file:
                 config_data = json.load(json_data_file)
 
